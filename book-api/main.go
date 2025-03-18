@@ -1,6 +1,7 @@
 package main
 
 import (
+	"book-api/handlers"
 	"fmt"
 	"log"
 	"net/http"
@@ -15,6 +16,8 @@ func main() {
 	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "Book API is running")
 	})
+	r.HandleFunc("/books", handlers.GetAllBooks).Methods("GET")
+	r.HandleFunc("/books", handlers.CreateBook).Methods("POST")
 
 	fmt.Println("Starting server on port 8000")
 	log.Fatal(http.ListenAndServe((":8000"), r))
