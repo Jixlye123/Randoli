@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"book-api/models"
 	"book-api/storage"
@@ -113,4 +114,55 @@ func DeleteBook(w http.ResponseWriter, r *http.Request) {
 
 	storage.SaveBooks(newBooks)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+//Serach books handles the seraching for books by title/description (case insensitive)
+
+func SearchBooks(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query().Get("q")
+	if query == "" {
+		http.Error(w, "Missing Search query", http.StatusBadRequest)
+		return
+	}
+
+	books, err := storage.LoadBooks()
+	if err != nil {
+		http.Error(w, "Error loading the books", http.StatusInternalServerError)
+		return
+	}
+
+	//Use goroutines for concurrent search
+
+	resultChan := make(chan models.Book, len(books))
+
+	//Launch the goroutines for the search
+
+	for _, book := range books {
+		go func(b models.Book) {
+			if matchesQuery(b, query) { //matchesquery undefined error
+				resultChan <- b
+			} else {
+				resultChan <- models.Book{} //Empty result for no match
+			}
+		}(book)
+	}
+
+	var results []models.Book
+	for range books {
+		book := <-resultChan
+		if book.BookID != "" {
+			results = append(results, book)
+		}
+	}
+
+	close(resultChan)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(results)
+}
+
+func matchesQuery(book models.Book, query string) bool {
+	query = strings.ToLower(query)
+	return strings.Contains(strings.ToLower(book.Title), query) ||
+		strings.Contains(strings.ToLower(book.Genre), query)
 }

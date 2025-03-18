@@ -21,6 +21,7 @@ func main() {
 	r.HandleFunc("/books/{id}", handlers.GetBookByID).Methods("GET")
 	r.HandleFunc("/books/{id}", handlers.UpdateBook).Methods("POST")
 	r.HandleFunc("/books/{id}", handlers.DeleteBook).Methods("DELETE")
+	r.HandleFunc("/books/search", handlers.SearchBooks).Methods("GET")
 
 	fmt.Println("Starting server on port 8000")
 	log.Fatal(http.ListenAndServe((":8000"), r))
