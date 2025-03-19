@@ -2,8 +2,11 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
+	"sync"
 
 	"book-api/models"
 	"book-api/storage"
@@ -20,8 +23,35 @@ func GetAllBooks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// OPTIMIZE - Parse limit and offset from query params
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
+
+	if limit <= 0 {
+		limit = 10
+	}
+
+	if offset < 0 {
+		offset = 0
+	}
+
+	//Implementation of pagination
+
+	start := offset
+	end := offset + limit
+
+	if start >= len(books) {
+		start = len(books)
+	}
+
+	if end > len(books) {
+		end = len(books)
+	}
+
+	paginatedBooks := books[start:end]
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(books)
+	json.NewEncoder(w).Encode(paginatedBooks)
 }
 
 func CreateBook(w http.ResponseWriter, r *http.Request) {
@@ -113,23 +143,39 @@ func UpdateBook(w http.ResponseWriter, r *http.Request) {
 
 func DeleteBook(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	id := vars["id"]
+	bookID := vars["id"]
 
-	books, _ := storage.LoadBooks()
-	newBooks := []models.Book{}
-	for _, book := range books {
-		if book.BookID != id {
-			newBooks = append(newBooks, book)
-		}
-	}
-
-	if len(newBooks) == len(books) {
-		http.Error(w, "Book not Found", http.StatusNotFound)
+	// Load books from storage
+	books, err := storage.LoadBooks()
+	if err != nil {
+		http.Error(w, "Error loading books", http.StatusInternalServerError)
 		return
 	}
 
-	storage.SaveBooks(newBooks)
-	w.WriteHeader(http.StatusNoContent)
+	// Search for the book and delete if found
+	var updatedBooks []models.Book
+	bookFound := false
+
+	for _, book := range books {
+		if book.BookID == bookID {
+			bookFound = true
+			continue // Skip the book to delete it
+		}
+		updatedBooks = append(updatedBooks, book)
+	}
+
+	if !bookFound {
+		http.Error(w, "Book not found", http.StatusNotFound)
+		return
+	}
+
+	// Save updated book list
+	if err := storage.SaveBooks(updatedBooks); err != nil {
+		http.Error(w, "Error saving books", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent) // 204 No Content
 }
 
 //Serach books handles the seraching for books by title/description (case insensitive)
@@ -140,45 +186,64 @@ func SearchBooks(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Missing Search query", http.StatusBadRequest)
 		return
 	}
-
+	//Loading the books from storage
 	books, err := storage.LoadBooks()
 	if err != nil {
 		http.Error(w, "Error loading the books", http.StatusInternalServerError)
 		return
 	}
 
-	//Use goroutines for concurrent search
+	// Fixing the seearch error
+	fmt.Printf("Searching for: %s\n", query)
+	fmt.Printf("Total books in database: %d\n", len(books))
 
-	resultChan := make(chan models.Book, len(books))
+	//Using goroutines for concurrent search
+	var wg sync.WaitGroup
+	results := make(chan models.Book, len(books))
 
 	//Launch the goroutines for the search
 
 	for _, book := range books {
+		wg.Add(1)
 		go func(b models.Book) {
+			defer wg.Done()
+
+			//CHECKING IF THE BOOK MATCHES THE QUERY
+			fmt.Printf("Checking book: %s\n", b.Title)
+
 			if matchesQuery(b, query) { //matchesquery undefined error
-				resultChan <- b
+				fmt.Printf("Match found for book: %s\n", b.Title)
+				results <- b
 			} else {
-				resultChan <- models.Book{} //Empty result for no match
+				results <- models.Book{} //Empty result for no match
 			}
 		}(book)
 	}
 
-	var results []models.Book
-	for range books {
-		book := <-resultChan
-		if book.BookID != "" {
-			results = append(results, book)
-		}
+	//CLOSING CHANNELS
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	// Collecting search results
+	var foundBooks []models.Book
+	for b := range results {
+		foundBooks = append(foundBooks, b)
 	}
 
-	close(resultChan)
+	fmt.Printf("Total matches: %d\n", len(foundBooks))
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(results)
+	json.NewEncoder(w).Encode(foundBooks)
 }
 
 func matchesQuery(book models.Book, query string) bool {
 	query = strings.ToLower(query)
-	return strings.Contains(strings.ToLower(book.Title), query) ||
-		strings.Contains(strings.ToLower(book.Genre), query)
+	titleMatch := strings.Contains(strings.ToLower(book.Title), query)
+	descriptionMatch := strings.Contains(strings.ToLower(book.Description), query)
+
+	fmt.Printf("Checking Book: %s | Title Match: %v | Description Match: %v\n", book.Title, titleMatch, descriptionMatch)
+
+	return titleMatch || descriptionMatch
 }
