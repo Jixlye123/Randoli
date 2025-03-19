@@ -8,7 +8,6 @@ import (
 	"book-api/models"
 	"book-api/storage"
 
-	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 )
 
@@ -32,11 +31,28 @@ func CreateBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//Generate unique BookId
-	newBook.BookID = uuid.New().String()
+	//Validate required firlds
+	if newBook.BookID == "" || newBook.AuthorID == "" || newBook.PublisherID == "" {
+		http.Error(w, "Missing required fields", http.StatusBadRequest)
+		return
+	}
 
+	//Load existing books
 	books, _ := storage.LoadBooks()
+
+	//Ensure BookID is unique
+	for _, book := range books {
+		if book.BookID == newBook.BookID {
+			http.Error(w, "Book ID already exists", http.StatusConflict)
+			return
+		}
+	}
+
+	// Add a new book
+
 	books = append(books, newBook)
+
+	// Save the updated books
 
 	if err := storage.SaveBooks(books); err != nil {
 		http.Error(w, "Error saving books", http.StatusInternalServerError)
