@@ -1,6 +1,5 @@
 package models
 
-//Book represents book entity
 type Book struct {
 	BookID          string  `json:"book_id"`
 	AuthorID        string  `json:"author_id"`

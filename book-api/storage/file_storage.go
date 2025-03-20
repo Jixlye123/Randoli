@@ -36,7 +36,7 @@ func LoadBooks() ([]models.Book, error) {
 	return books, nil
 }
 
-func SaveBooks(books []models.Book) error { //Save books writes the books to the JSON file
+func SaveBooks(books []models.Book) error {
 	mu.Lock()
 	defer mu.Unlock()
 
