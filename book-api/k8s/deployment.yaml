@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: books-api
+  labels:
+    app: books-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: books-api
+  template:
+    metadata:
+      labels:
+        app: books-api
+    spec:
+      containers:
+      - name: books-api
+        image: books-api:latest  # Use local image
+        imagePullPolicy: Never    # Prevent Kubernetes from trying to pull the image
+

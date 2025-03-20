@@ -1,4 +1,5 @@
-FROM golang:1.24
+FROM golang:1.24 as builder
+WORKDIR /app
 
 ENV GO111MODULE=on \
     CGO_ENABLED=0 \

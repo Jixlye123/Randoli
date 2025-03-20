@@ -21,7 +21,7 @@ func GetAllBooks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// OPTIMIZE - Parse limit and offset from query params
+	// OPTIMIZE - Pagination Query Params
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
 

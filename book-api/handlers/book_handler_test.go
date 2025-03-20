@@ -81,3 +81,28 @@ func TestGetAllBooks_Empty(t *testing.T) {
 		t.Errorf("Expected no books, got %d", len(books))
 	}
 }
+
+func TestGetAllBooksByPagination(t *testing.T) {
+	setupTest()
+
+	req, _ := http.NewRequest("GET", "/books?limit=1&offset=1", nil)
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(GetAllBooks)
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Expected status OK but got %v", rr.Code)
+	}
+
+	var books []models.Book
+	json.Unmarshal(rr.Body.Bytes(), &books)
+
+	if len(books) != 1 {
+		t.Fatalf("Expected 1 book but got %v", len(books))
+	}
+
+	if books[0].Title != "Docker Deep Dive" {
+		t.Errorf("Unexpected book title: got %s, want Docker Deep Dive", books[0].Title)
+	}
+}
